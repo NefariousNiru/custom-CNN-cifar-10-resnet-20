@@ -65,7 +65,7 @@ class CustomCNN(nn.Module):
 
 
 def plot_accuracies(
-    train_accs, test_accs, epochs, save_path=f"./model/accuracy_curve_seed-{seed}.png"
+    train_accs, test_accs, epochs, save_path=f"./accuracy_curve_seed-{seed}.png"
 ):
     plt.figure(figsize=(8, 6))
     plt.plot(
