@@ -1,8 +1,13 @@
-# CNNclassify.py
-# Runs a custom model for training, testing and a pretrained resnet-20 using the following commands:
-#   - python CNNclassify.py train
-#   - python CNNclassify.py test <image_path>
-#   - python CNNclassify.py resnet20
+"""
+CNNclassify.py
+Runs a custom model for training, testing and a pretrained resnet-20 using the following commands:
+  - python CNNclassify.py train (Trains the CustomCNN model on CIFAR-10 test set)
+  - python CNNclassify.py test <image_path>   (Runs inference in a single image with CustomCNN model)
+  - python CNNclassify.py resnet20    (tests ResNet20 on the CIFAR-10 test dataset)
+  - python CNNclassify.py thop   (calculates MACs and Params)
+  - python CNNclassify.py latency     (calculates latency for 10000 inferences with a 100 cycle warmup for a single input [1, 3, 32, 32])
+"""
+
 import random
 from argparse import ArgumentParser, ArgumentTypeError
 import os
@@ -56,15 +61,9 @@ class CustomCNN(nn.Module):
         )
 
         self.fc_layers = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
-            nn.Linear(128 * 3 * 3, 512),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(512, 256),
-            nn.GELU(),
-            nn.Linear(256, 64),
-            nn.ReLU(),
-            nn.Linear(64, num_classes),
+            nn.Linear(128, num_classes),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -122,9 +121,14 @@ def get_cifar10_test_loader(batch_size: int = 128, data_root: str = "./data"):
     return test_loader
 
 
-def get_cifar10_train_loader(batch_size: int = 128, data_root: str = "./data"):
-    """Return CIFAR-10 train loaders with transforms."""
-    train_transform = transforms.Compose(
+def get_train_transform():
+    """Return transformation for training data.
+    RandomCrop 32, padding 4
+    Random Horizontally Flip
+    Random Erasing p=0.2
+    Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+    """
+    return transforms.Compose(
         [
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
@@ -133,6 +137,11 @@ def get_cifar10_train_loader(batch_size: int = 128, data_root: str = "./data"):
             transforms.RandomErasing(p=0.2),
         ]
     )
+
+
+def get_cifar10_train_loader(batch_size: int = 128, data_root: str = "./data"):
+    """Return CIFAR-10 train loaders with transforms."""
+    train_transform = get_train_transform()
 
     train_set = torchvision.datasets.CIFAR10(
         root=data_root, train=True, download=True, transform=train_transform
@@ -340,10 +349,11 @@ def train():
         train_accs.append(tr_acc)
         test_accs.append(te_acc)
 
-        # Loop, Train Loss, Train Acc %, Test Loss, Test Acc %
-        print(
-            f"{epoch:>4}/{epochs:<3}  {tr_loss:>15.4f}  {tr_acc:>15.4f}  {te_loss:>15.4f}  {te_acc:>15.4f}"
-        )
+        # Loop, Train Loss, Train Acc %, Test Loss, Test Acc %, print every 10 epochs
+        if epoch == 1 or epoch % 10 == 0:
+            print(
+                f"{epoch:>4}/{epochs:<3}  {tr_loss:>15.4f}  {tr_acc:>15.4f}  {te_loss:>15.4f}  {te_acc:>15.4f}"
+            )
 
     os.makedirs("./model", exist_ok=True)
     torch.save(model.state_dict(), "./model/custom_cnn.pt")
@@ -476,7 +486,7 @@ def inference_speed_test(
 def run_thop(save_path: str = "./thop_metrics.csv") -> None:
     """
     Profiles MACs and Params for CustomCNN and ResNet-20 on a 1x3x32x32 input
-    and writes a CSV with both raw counts and human-readable strings.
+    and writes a CSV with raw counts and human-readable strings.
     No console output by design.
     """
     device = torch.device("cpu")  # keep profiling on CPU for portability
@@ -553,8 +563,8 @@ def main():
     elif args.command == "thop":
         run_thop("./thop_metrics.csv")
 
-    elif args.command == "speed":
-        inference_speed_test("./inference_speed.csv", iters=1000, warmup=100)
+    elif args.command == "latency":
+        inference_speed_test("./inference_speed.csv", iters=10000, warmup=100)
 
 
 if __name__ == "__main__":
