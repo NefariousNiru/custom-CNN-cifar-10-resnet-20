@@ -3,6 +3,7 @@
 #   - python CNNclassify.py train
 #   - python CNNclassify.py test <image_path>
 #   - python CNNclassify.py resnet20
+import random
 from argparse import ArgumentParser, ArgumentTypeError
 import os
 import torch
@@ -16,8 +17,14 @@ import matplotlib.pyplot as plt
 from resnet20_cifar import ResNet
 from thop import profile, clever_format
 import csv
+import time, gc
+import numpy as np
+
 
 seed = 42
+random.seed(seed)
+os.environ["PYTHONHASHSEED"] = str(seed)
+np.random.seed(seed)
 torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 torch.backends.cudnn.benchmark = False
@@ -344,6 +351,128 @@ def train():
 
 
 @torch.no_grad()
+def inference_speed_test(
+    save_path: str = "./inference_speed.csv", iters: int = 1000, warmup: int = 100
+) -> None:
+    """
+    Measures single-image inference latency for CustomCNN and ResNet-20.
+    Uses dummy input (1,3,32,32). Writes CSV only.
+    Clears GPU memory between models to avoid interference.
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    def _device_str() -> str:
+        if torch.cuda.is_available():
+            return f"cuda:0 ({torch.cuda.get_device_name(0)})"
+        return "cpu"
+
+    def _sync():
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+
+    def _clear():
+        _sync()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        gc.collect()
+
+    def bench(model_ctor, model_name: str):
+        _clear()
+        model = model_ctor().to(device).eval()
+        x = torch.randn(1, 3, 32, 32, device=device)
+
+        # Warmup (un-timed)
+        with torch.inference_mode():
+            for _ in range(warmup):
+                _ = model(x)
+        _sync()
+
+        # Timed runs
+        times_ms = []
+        with torch.inference_mode():
+            for _ in range(iters):
+                _sync()
+                t0 = time.perf_counter()
+                _ = model(x)
+                _sync()
+                t1 = time.perf_counter()
+                times_ms.append((t1 - t0) * 1000.0)
+
+        times_ms_sorted = sorted(times_ms)
+        n = len(times_ms_sorted)
+        avg_ms = sum(times_ms_sorted) / n  # average latency across runs
+        min_ms = times_ms_sorted[0]  # fastest (best-case) latency
+        max_ms = times_ms_sorted[-1]  # slowest (worst-case) latency
+        p50_ms = times_ms_sorted[
+            n // 2
+        ]  # median latency (50% of runs faster, 50% slower)
+        p90_ms = times_ms_sorted[
+            max(0, int(0.9 * n) - 1)
+        ]  # 90th percentile latency (90% of runs faster)
+        p95_ms = times_ms_sorted[
+            max(0, int(0.95 * n) - 1)
+        ]  # 95th percentile latency (tail latency measure)
+        var = sum((t - avg_ms) ** 2 for t in times_ms_sorted) / n
+        std_ms = var**0.5  # standard deviation of latency (variability)
+        # Cleanup this model before the next
+        del model, x
+        _clear()
+
+        return {
+            "model": model_name,
+            "device": _device_str(),
+            "warmup": warmup,
+            "iters": iters,
+            "avg_ms": avg_ms,
+            "min_ms": min_ms,
+            "max_ms": max_ms,
+            "p50_ms": p50_ms,
+            "p90_ms": p90_ms,
+            "p95_ms": p95_ms,
+            "std_ms": std_ms,
+        }
+
+    rows = []
+    rows.append(bench(lambda: CustomCNN(), "CustomCNN"))
+    rows.append(bench(lambda: ResNet(depth=20, num_classes=10), "ResNet-20"))
+
+    os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+    with open(save_path, mode="w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "model",
+                "device",
+                "warmup",
+                "iters",
+                "avg_ms",
+                "min_ms",
+                "max_ms",
+                "p50_ms",
+                "p90_ms",
+                "p95_ms",
+                "std_ms",
+            ]
+        )
+        for r in rows:
+            writer.writerow(
+                [
+                    r["model"],
+                    r["device"],
+                    r["warmup"],
+                    r["iters"],
+                    f"{r['avg_ms']:.4f}",
+                    f"{r['min_ms']:.4f}",
+                    f"{r['max_ms']:.4f}",
+                    f"{r['p50_ms']:.4f}",
+                    f"{r['p90_ms']:.4f}",
+                    f"{r['p95_ms']:.4f}",
+                    f"{r['std_ms']:.4f}",
+                ]
+            )
+
+
+@torch.no_grad()
 def run_thop(save_path: str = "./thop_metrics.csv") -> None:
     """
     Profiles MACs and Params for CustomCNN and ResNet-20 on a 1x3x32x32 input
@@ -401,6 +530,11 @@ def main():
     # Thop
     subparsers.add_parser("thop", help="Profile MACs/Params and write CSV (no prints)")
 
+    # Inference latency
+    subparsers.add_parser(
+        "latency", help="Measure inference latency and write CSV (no prints)"
+    )
+
     args = parser.parse_args()
 
     if args.command == "train":
@@ -418,6 +552,9 @@ def main():
 
     elif args.command == "thop":
         run_thop("./thop_metrics.csv")
+
+    elif args.command == "speed":
+        inference_speed_test("./inference_speed.csv", iters=1000, warmup=100)
 
 
 if __name__ == "__main__":
