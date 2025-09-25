@@ -257,7 +257,7 @@ def resnet20():
 def test(image: str):
     """Run inference on a single given image never a batch"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model_path = "./model/custom_cnn.pt"
+    model_path = "./model/model.pt"
     if not os.path.isfile(model_path):
         raise FileNotFoundError(f"Model checkpoint not found: {model_path}")
 
@@ -356,7 +356,8 @@ def train():
             )
 
     os.makedirs("./model", exist_ok=True)
-    torch.save(model.state_dict(), "./model/custom_cnn.pt")
+    torch.save(model.state_dict(), "./model/model.pt")
+    print("Model Saved in file: ./model/model.pt")
     plot_accuracies(train_accs, test_accs, epochs)
 
 
