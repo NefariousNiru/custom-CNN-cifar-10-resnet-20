@@ -297,7 +297,7 @@ def test(image: str):
         "truck",
     ]
     pred_idx = int(logits.argmax(dim=1).item())
-    print(classes[pred_idx])
+    print("Prediction Result: ", classes[pred_idx])
 
     # Save conv1 visualization as CONV_rslt.png (32 maps in an 8x4 grid, grayscale)
     feats = conv1_out["x"][0]  # [32, 28, 28]
