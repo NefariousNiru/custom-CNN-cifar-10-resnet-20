@@ -311,7 +311,7 @@ def test(image: str):
 def train():
     """Train CustomCNN model"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    epochs = 150
+    epochs = 100
     batch_size = 128
     lr = 0.1
     momentum = 0.9
