@@ -95,7 +95,7 @@ def plot_accuracies(
     plt.legend()
     plt.savefig(save_path, dpi=300)
     plt.close()
-    print(f"Accuracy curve saved at {save_path}")
+    print(f"Accuracy curve saved: {save_path}")
 
 
 def get_test_transform():
