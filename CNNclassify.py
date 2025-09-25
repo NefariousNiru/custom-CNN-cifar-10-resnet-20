@@ -69,6 +69,7 @@ class CustomCNN(nn.Module):
 def plot_accuracies(
     train_accs, test_accs, epochs, save_path=f"./accuracy_curve_seed-{seed}.png"
 ):
+    """Function to plot train and test accuracies over epochs."""
     plt.figure(figsize=(8, 6))
     plt.plot(
         range(1, epochs + 1),
@@ -103,6 +104,7 @@ def get_test_transform():
 
 
 def get_cifar10_test_loader(batch_size: int = 128, data_root: str = "./data"):
+    """Load the CIFAR-10 test dataset."""
     test_transform = get_test_transform()
     test_set = torchvision.datasets.CIFAR10(
         root=data_root, train=False, download=True, transform=test_transform
@@ -114,7 +116,7 @@ def get_cifar10_test_loader(batch_size: int = 128, data_root: str = "./data"):
 
 
 def get_cifar10_train_loader(batch_size: int = 128, data_root: str = "./data"):
-    """Return CIFAR-10 train/test loaders with standard transforms."""
+    """Return CIFAR-10 train loaders with transforms."""
     train_transform = transforms.Compose(
         [
             transforms.RandomCrop(32, padding=4),
@@ -137,6 +139,7 @@ def get_cifar10_train_loader(batch_size: int = 128, data_root: str = "./data"):
 
 
 def _print_metrics_header():
+    """Print headers in this format: {'Loop':>8}  {'Train Loss':>15}  {'Train Acc %':>15}  {'Test Loss':>15}  {'Test Acc %':>15}"""
     print(
         f"{'Loop':>8}  {'Train Loss':>15}  {'Train Acc %':>15}  {'Test Loss':>15}  {'Test Acc %':>15}"
     )
@@ -218,6 +221,7 @@ def evaluate_pt_resnet_20_cifar10(
 
 
 def resnet20():
+    """Load a resnet 20 model and run it on the CIFAR 10 test set"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_path = "./model/resnet20_cifar10_pretrained.pt"
     if not os.path.isfile(model_path):
@@ -231,7 +235,7 @@ def resnet20():
     acc = evaluate_pt_resnet_20_cifar10(
         model, batch_size=128, data_root="./data", device=device
     )
-    print(f"Pretrained ResNet-20 CIFAR-10 Test Accuracy: {acc}")
+    print(f"Pretrained ResNet-20 CIFAR-10 Test Accuracy: {acc:.2f}%")
 
 
 def test(image: str):
