@@ -217,7 +217,7 @@ def evaluate_pt_resnet_20_cifar10(
 
 def resnet20():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model_path = "./model/resnet20_cifar10.pt"
+    model_path = "./model/resnet20_cifar10_pretrained.pt"
     if not os.path.isfile(model_path):
         raise FileNotFoundError(f"Model checkpoint not found: {model_path}")
 
@@ -229,7 +229,7 @@ def resnet20():
     acc = evaluate_pt_resnet_20_cifar10(
         model, batch_size=128, data_root="./data", device=device
     )
-    print(f"ResNet-20 CIFAR-10 test accuracy: {acc:.2f}%")
+    print(f"Pretrained ResNet-20 CIFAR-10 Test Accuracy: {acc}")
 
 
 def test(image: str):
