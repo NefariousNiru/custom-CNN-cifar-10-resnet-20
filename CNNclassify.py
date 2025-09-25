@@ -3,7 +3,7 @@
 #   - python CNNclassify.py train
 #   - python CNNclassify.py test <image_path>
 #   - python CNNclassify.py resnet20
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentTypeError
 import os
 import torch
 import torch.nn as nn
@@ -14,6 +14,8 @@ from PIL import Image
 import torchvision.utils as vutils
 import matplotlib.pyplot as plt
 from resnet20_cifar import ResNet
+from thop import profile, clever_format
+import csv
 
 seed = 42
 torch.manual_seed(seed)
@@ -201,7 +203,7 @@ def evaluate_pt_resnet_20_cifar10(
     data_root: str = "./data",
     device: torch.device | None = None,
 ) -> float:
-    """Evalaute a pt resent 20 model"""
+    """Evalaute a pt resnet 20 model"""
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
     test_loader = get_cifar10_test_loader(batch_size=batch_size, data_root=data_root)
     model.eval()
@@ -337,6 +339,43 @@ def train():
     plot_accuracies(train_accs, test_accs, epochs)
 
 
+@torch.no_grad()
+def run_thop(save_path: str = "./thop_metrics.csv") -> None:
+    """
+    Profiles MACs and Params for CustomCNN and ResNet-20 on a 1x3x32x32 input
+    and writes a CSV with both raw counts and human-readable strings.
+    No console output by design.
+    """
+    device = torch.device("cpu")  # keep profiling on CPU for portability
+    dummy = torch.randn(1, 3, 32, 32, device=device)
+
+    # Models in eval mode
+    custom = CustomCNN().to(device).eval()
+    res20 = ResNet(depth=20, num_classes=10).to(device).eval()
+
+    # Profile
+    macs_custom, params_custom = profile(custom, inputs=(dummy,), verbose=False)
+    macs_res20, params_res20 = profile(res20, inputs=(dummy,), verbose=False)
+
+    # Human-readable
+    macs_custom_hr, params_custom_hr = clever_format(
+        [macs_custom, params_custom], "%.4f"
+    )
+    macs_res20_hr, params_res20_hr = clever_format([macs_res20, params_res20], "%.4f")
+
+    # Write CSV
+    os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+    with open(save_path, mode="w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["model", "macs_raw", "params_raw", "macs_hr", "params_hr"])
+        writer.writerow(
+            ["CustomCNN", macs_custom, params_custom, macs_custom_hr, params_custom_hr]
+        )
+        writer.writerow(
+            ["ResNet-20", macs_res20, params_res20, macs_res20_hr, params_res20_hr]
+        )
+
+
 def main():
     parser = ArgumentParser(
         prog="CNNclassify.py", description="CNN classifier for CIFAR-10"
@@ -355,6 +394,9 @@ def main():
     # ResNet20 subcommand
     subparsers.add_parser("resnet20", help="Run in ResNet20 mode")
 
+    # Thop
+    subparsers.add_parser("thop", help="Profile MACs/Params and write CSV (no prints)")
+
     args = parser.parse_args()
 
     if args.command == "train":
@@ -369,6 +411,9 @@ def main():
 
     elif args.command == "resnet20":
         resnet20()
+
+    elif args.command == "thop":
+        run_thop("./thop_metrics.csv")
 
 
 if __name__ == "__main__":
