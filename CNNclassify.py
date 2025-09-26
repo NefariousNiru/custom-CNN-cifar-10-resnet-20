@@ -4,12 +4,12 @@ Runs a custom model for training, testing and a pretrained resnet-20 using the f
   - python CNNclassify.py train (Trains the CustomCNN model on CIFAR-10 test set)
   - python CNNclassify.py test <image_path>   (Runs inference in a single image with CustomCNN model)
   - python CNNclassify.py resnet20    (tests ResNet20 on the CIFAR-10 test dataset)
-  - python CNNclassify.py thop   (calculates MACs and Params)
+  - python CNNclassify.py thop   (calculates MACs and Params by running a [1, 3, 32, 32] single input
   - python CNNclassify.py latency     (calculates latency for 10000 inferences with a 100 cycle warmup for a single input [1, 3, 32, 32])
 """
 
 import random
-from argparse import ArgumentParser, ArgumentTypeError
+from argparse import ArgumentParser
 import os
 import torch
 import torch.nn as nn
@@ -26,6 +26,7 @@ import time, gc
 import numpy as np
 
 
+# Set seeds to make code Deterministic
 seed = 42
 random.seed(seed)
 os.environ["PYTHONHASHSEED"] = str(seed)
@@ -60,6 +61,7 @@ class CustomCNN(nn.Module):
             nn.MaxPool2d(kernel_size=2),
         )
 
+        # Linear Layers
         self.fc_layers = nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
