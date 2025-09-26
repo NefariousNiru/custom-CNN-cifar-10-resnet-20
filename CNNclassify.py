@@ -4,6 +4,10 @@ Runs a custom model for training, testing and a pretrained resnet-20 using the f
   - python CNNclassify.py train (Trains the CustomCNN model on CIFAR-10 test set)
   - python CNNclassify.py test <image_path>   (Runs inference in a single image with CustomCNN model)
   - python CNNclassify.py resnet20    (tests ResNet20 on the CIFAR-10 test dataset)
+        To run resnet ensure resnet20_cifar.py is included in the same directory level as CNNclassify.py
+        The file is imported to model the ResNet class.
+
+  Additional params
   - python CNNclassify.py thop   (calculates MACs and Params by running a [1, 3, 32, 32] single input
   - python CNNclassify.py latency     (calculates latency for 10000 inferences with a 100 cycle warmup for a single input [1, 3, 32, 32])
 """
